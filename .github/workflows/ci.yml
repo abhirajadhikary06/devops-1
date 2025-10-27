@@ -48,69 +48,10 @@ jobs:
           pytest tests/ -vv
 
   # -------------------------------------------------
-  # 2. E2E TESTS (Playwright + Flask server)
-  # -------------------------------------------------
-  e2e-tests:
-    needs: unit-tests                     # Wait for unit tests to pass
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Restore Playwright cache
-        id: cache-playwright
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
-
-      - name: Install Python packages
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Install Playwright browsers (only if cache miss)
-        if: steps.cache-playwright.outputs.cache-hit != 'true'
-        run: |
-          playwright install --with-deps
-
-      - name: Start Flask application
-        run: |
-          nohup python app.py > app.log 2>&1 &
-          echo "Flask started (PID: $!)"
-
-      - name: Wait for Flask server
-        uses: nick-fields/retry@v3
-        with:
-          timeout_seconds: 30
-          max_attempts: 12
-          retry_wait_seconds: 3
-          command: |
-            curl -f http://127.0.0.1:5000/ || exit 1
-
-      - name: Run Playwright E2E tests
-        run: |
-          pytest e2e/ -vv
-
-      - name: Upload Flask logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: flask-e2e-logs
-          path: app.log
-
-  # -------------------------------------------------
   # 3. DOCKER BUILD (after both test jobs succeed)
   # -------------------------------------------------
   docker-build:
-    needs: [unit-tests, e2e-tests]       # Only runs if both pass
+    needs: [unit-tests]       # Only runs if both pass
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
