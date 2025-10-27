@@ -51,7 +51,7 @@ jobs:
   # 3. DOCKER BUILD (after both test jobs succeed)
   # -------------------------------------------------
   docker-build:
-    needs: [unit-tests]       # Only runs if both pass
+    needs: [unit-tests, e2e-tests]       # Only runs if both pass
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
