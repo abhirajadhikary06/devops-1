@@ -1,8 +1,7 @@
 ###########################################
 # BASE IMAGE
 ###########################################
-
-FROM python:3.11-slim AS base
+FROM python:3.12-slim AS builder
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
@@ -12,7 +11,8 @@ COPY . .
 ###########################################
 # MULTI-STAGE & DISTROLESS BUILD
 ###########################################
-FROM gcr.io/distroless/python3-debian11
+FROM gcr.io/distroless/python3-debian12
 WORKDIR /app
-COPY --from=base /app /app
-CMD [ "python", "app.py" ]
+COPY --from=builder /app /app
+ENV PYTHONPATH=/app
+CMD ["python", "app.py"]
