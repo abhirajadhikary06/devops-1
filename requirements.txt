@@ -1,0 +1,7 @@
+flask
+requests
+prometheus-flask-exporter
+pytest
+pytest-flask
+playwright
+responses
