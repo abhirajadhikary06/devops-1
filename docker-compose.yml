@@ -2,10 +2,10 @@ version: '3.8'
 services:
   app:
     image: myflaskapp
-    ports:
-      - "5000:5000"
     environment:
       - FLASK_APP=app.py
+    ports:
+      - "5000:5000"
 
   prometheus:
     image: prom/prometheus:latest

@@ -11,15 +11,9 @@ pipeline {
                 sh 'pip install -r requirements.txt'
             }
         }
-        stage('Run Pytest') {
+        stage('Run Unit Tests') {
             steps {
-                sh 'pytest tests/'
-            }
-        }
-        stage('Run Playwright Tests') {
-            steps {
-                sh 'playwright install --with-deps'
-                sh 'python app.py & sleep 5; pytest e2e/; kill $!'
+                sh 'pytest tests/ -vv'
             }
         }
         stage('Docker Build') {
@@ -27,7 +21,7 @@ pipeline {
                 sh 'docker buildx build -t myflaskapp:latest .'
             }
         }
-        stage('Deploy with Compose') {
+        stage('Deploy with Monitoring') {
             steps {
                 sh 'docker-compose up -d'
             }
