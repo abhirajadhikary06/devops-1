@@ -1,15 +1,12 @@
 version: '3.8'
 
 services:
-  # === Your Flask App ===
   app:
-    build: .
-    image: abhirajadhikary06/myflaskapp:latest
+    image: abhirajadhikary06/myflaskapp:latest   # Pull from registry
     ports:
       - "5000:5000"
     restart: unless-stopped
 
-  # === Prometheus ===
   prometheus:
     image: prom/prometheus:latest
     ports:
@@ -20,11 +17,8 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
     restart: unless-stopped
 
-  # === Grafana ===
   grafana:
     image: grafana/grafana:latest
     ports:
@@ -37,7 +31,6 @@ services:
       - prometheus
     restart: unless-stopped
 
-  # === Jenkins ===
   jenkins:
     image: jenkins/jenkins:lts
     ports:
@@ -45,14 +38,13 @@ services:
       - "50000:50000"
     volumes:
       - jenkins_home:/var/jenkins_home
-      - /var/run/docker.sock:/var/run/docker.sock  # Allows Jenkins to run Docker
-      - /usr/bin/docker:/usr/bin/docker  # Docker CLI inside container
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+    privileged: true
     environment:
       - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
-    privileged: true
     restart: unless-stopped
 
-# Persistent volumes
 volumes:
   prometheus_data:
   grafana_data:
