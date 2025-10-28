@@ -1,58 +1,68 @@
 pipeline {
-    agent {
-        docker {
-            image 'abhirajadhikary06/myflaskapp:latest'
-            args '-v /var/run/docker.sock:/var/run/docker.sock --user root'
-            reuseNode true
-        }
-    }
+    agent any
 
     stages {
+        stage('Setup') {
+            steps {
+                sh '''
+                    # Install Python, pip, curl, docker-compose if not present
+                    if ! command -v python3 >/dev/null; then
+                        sudo apt-get update
+                        sudo apt-get install -y python3 python3-pip curl
+                    fi
+                    if ! command -v docker-compose >/dev/null; then
+                        sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+                        sudo chmod +x /usr/local/bin/docker-compose
+                    fi
+                '''
+            }
+        }
+
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Install') {
+        stage('Install Dependencies') {
             steps {
-                sh 'pip install --no-cache-dir -r requirements.txt'
+                sh 'python3 -m pip install --no-cache-dir -r requirements.txt'
             }
         }
 
-        stage('Test') {
+        stage('Run Tests') {
             steps {
-                sh 'pytest tests/ -v'
+                sh 'python3 -m pytest tests/ -v'
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy Stack') {
             steps {
                 sh 'docker-compose up -d'
             }
         }
 
-        stage('Wait for App') {
+        stage('Wait for Flask') {
             steps {
                 timeout(time: 90, unit: 'SECONDS') {
                     waitUntil {
                         script {
-                            def r = sh(
+                            def status = sh(
                                 script: 'curl -f http://localhost:5000/ || exit 1',
                                 returnStatus: true
                             )
-                            return r == 0
+                            return status == 0
                         }
                     }
                 }
-                echo 'Flask app is UP!'
+                echo 'App is running at http://localhost:5000'
             }
         }
     }
 
     post {
-        always { echo 'Done.' }
-        success { echo 'SUCCESS' }
-        failure { echo 'FAILED' }
+        always { echo 'Pipeline finished.' }
+        success { echo 'SUCCESS: All good!' }
+        failure { echo 'FAILED: Check logs.' }
     }
 }
