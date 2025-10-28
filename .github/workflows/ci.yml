@@ -41,5 +41,5 @@ jobs:
 
       - name: Push Docker image
         run: |
-          docker tag myflaskapp ${{ secrets.DOCKER_USERNAME }}/myflaskapp:latest
+          docker tag myflaskapp:latest ${{ secrets.DOCKER_USERNAME }}/myflaskapp:latest
           docker push ${{ secrets.DOCKER_USERNAME }}/myflaskapp:latest
