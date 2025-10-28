@@ -1,5 +1,8 @@
 pipeline {
-    agent { docker { image 'python:3.12-slim' } }
+    agent any  // Run on Jenkins agent (host), NOT inside python:3.12-slim
+    environment {
+        DOCKER_HOST = 'unix:///var/run/docker.sock'
+    }
     stages {
         stage('Checkout') {
             steps {
@@ -8,12 +11,13 @@ pipeline {
         }
         stage('Install Dependencies') {
             steps {
-                sh 'pip install -r requirements.txt'
+                sh 'python3 -m pip install --upgrade pip'
+                sh 'python3 -m pip install -r requirements.txt'
             }
         }
         stage('Run Unit Tests') {
             steps {
-                sh 'pytest tests/ -vv'
+                sh 'python3 -m pytest tests/ -vv'
             }
         }
         stage('Docker Build') {

@@ -46,9 +46,10 @@ services:
     volumes:
       - jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock  # Allows Jenkins to run Docker
-      - /usr/local/bin/docker:/usr/local/bin/docker  # Docker CLI inside container
+      - /usr/bin/docker:/usr/bin/docker  # Docker CLI inside container
     environment:
       - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+    privileged: true
     restart: unless-stopped
 
 # Persistent volumes
