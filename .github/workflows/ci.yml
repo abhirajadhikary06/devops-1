@@ -61,4 +61,4 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t myflaskapp . #
+          docker build -t myflaskapp . # Build image from current dir
