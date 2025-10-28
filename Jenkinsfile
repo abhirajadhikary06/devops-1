@@ -1,10 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'python:3.12-slim'
-            args '-v /var/run/docker.sock:/var/run/docker.sock'
-        }
-    }
+    agent any
     
     environment {
         APP_NAME = 'myflaskapp'
@@ -19,6 +14,12 @@ pipeline {
         }
         
         stage('Setup') {
+            agent {
+                docker {
+                    image 'python:3.12-slim'
+                    reuseNode true
+                }
+            }
             steps {
                 sh 'pip install --upgrade pip'
                 sh 'pip install -r requirements.txt'
@@ -27,6 +28,12 @@ pipeline {
         }
         
         stage('Test') {
+            agent {
+                docker {
+                    image 'python:3.12-slim'
+                    reuseNode true
+                }
+            }
             steps {
                 sh 'python -m pytest tests/ -v'
             }
@@ -63,8 +70,10 @@ pipeline {
     
     post {
         always {
-            sh 'docker logout'
-            cleanWs()
+            script {
+                sh 'docker logout || true'
+                cleanWs()
+            }
         }
         success {
             echo 'Pipeline completed successfully!'
