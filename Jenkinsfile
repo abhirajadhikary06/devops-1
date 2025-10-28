@@ -1,5 +1,10 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'python:3.12-slim'
+            args '--network host'
+        }
+    }
     
     environment {
         DOCKER_IMAGE = 'abhirajadhikary06/myflaskapp'
@@ -10,6 +15,7 @@ pipeline {
         stage('Build') {
             steps {
                 echo 'Building application...'
+                sh 'python -m pip install --upgrade pip'
                 sh 'pip install -r requirements.txt'
             }
         }
@@ -21,28 +27,24 @@ pipeline {
             }
         }
         
-        stage('Build Docker Image') {
+        stage('Build and Push Docker Image') {
+            agent any  // Switch back to Jenkins agent for Docker operations
             steps {
                 echo 'Building Docker image...'
-                sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
-            }
-        }
-        
-        stage('Push Docker Image') {
-            steps {
-                echo 'Pushing Docker image...'
-                withCredentials([usernamePassword(credentialsId: 'dockerhub', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-                    sh "docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}"
-                    sh "docker push ${DOCKER_IMAGE}:${DOCKER_TAG}"
+                script {
+                    docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}")
+                    
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                        sh "docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}"
+                        sh "docker push ${DOCKER_IMAGE}:${DOCKER_TAG}"
+                        sh "docker logout"
+                    }
                 }
             }
         }
     }
     
     post {
-        always {
-            sh 'docker logout'
-        }
         success {
             echo 'Pipeline succeeded!'
         }
