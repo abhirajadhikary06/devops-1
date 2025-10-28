@@ -1,75 +1,76 @@
 pipeline {
     agent {
         docker {
-            image 'abhirajadhikary06/myflaskapp:latest'
-            label 'docker'
-            args '''
-                -v /var/run/docker.sock:/var/run/docker.sock
-                -v /usr/bin/docker:/usr/bin/docker
-                --user root
-            '''
-            reuseNode true
+            image 'python:3.12-slim'
+            args '-v /var/run/docker.sock:/var/run/docker.sock'
         }
     }
-
-    options {
-        timeout(time: 8, unit: 'MINUTES')
-        disableConcurrentBuilds()
+    
+    environment {
+        APP_NAME = 'myflaskapp'
+        DOCKER_CREDENTIALS_ID = 'docker-hub-credentials'
     }
-
+    
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
-
-        stage('Install & Test') {
-            parallel {
-                stage('Install') {
-                    steps {
-                        sh 'pip install --upgrade pip --quiet'
-                        sh 'pip install -r requirements.txt --quiet'
-                    }
-                }
-                stage('Test') {
-                    steps {
-                        sh 'pytest tests/ -vv --junitxml=report.xml'
-                    }
+        
+        stage('Setup') {
+            steps {
+                sh 'pip install --upgrade pip'
+                sh 'pip install -r requirements.txt'
+                sh 'pip install pytest pytest-flask'
+            }
+        }
+        
+        stage('Test') {
+            steps {
+                sh 'python -m pytest tests/ -v'
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: DOCKER_CREDENTIALS_ID, usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh 'docker build -t ${DOCKER_USERNAME}/${APP_NAME}:${BUILD_NUMBER} .'
+                    sh 'docker tag ${DOCKER_USERNAME}/${APP_NAME}:${BUILD_NUMBER} ${DOCKER_USERNAME}/${APP_NAME}:latest'
                 }
             }
         }
-
+        
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: DOCKER_CREDENTIALS_ID, usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
+                    sh 'docker push ${DOCKER_USERNAME}/${APP_NAME}:${BUILD_NUMBER}'
+                    sh 'docker push ${DOCKER_USERNAME}/${APP_NAME}:latest'
+                }
+            }
+        }
+        
         stage('Deploy') {
             steps {
-                sh 'docker-compose up -d --remove-orphans'
-            }
-        }
-
-        stage('Wait for App') {
-            steps {
-                script {
-                    timeout(time: 60, unit: 'SECONDS') {
-                        waitUntil {
-                            def result = sh(
-                                script: 'curl -f http://localhost:5000/ || exit 1',
-                                returnStatus: true
-                            )
-                            return (result == 0)
-                        }
-                    }
+                withCredentials([usernamePassword(credentialsId: DOCKER_CREDENTIALS_ID, usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh 'DOCKER_USERNAME=$DOCKER_USERNAME docker-compose down || true'
+                    sh 'DOCKER_USERNAME=$DOCKER_USERNAME docker-compose up -d'
                 }
-                echo 'App is up and healthy!'
             }
         }
     }
-
+    
     post {
         always {
-            junit testResults: 'report.xml', allowEmptyResults: true
+            sh 'docker logout'
             cleanWs()
         }
-        success { echo 'Success!' }
-        failure { echo 'Failed!' }
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
+        }
     }
 }
