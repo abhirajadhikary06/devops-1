@@ -2,19 +2,8 @@ pipeline {
     agent {
         docker {
             image 'abhirajadhikary06/myflaskapp:latest'
-            label 'docker'
-            args '''
-                -v /var/run/docker.sock:/var/run/docker.sock
-                -v /usr/bin/docker:/usr/bin/docker
-                --user root
-            '''
-            reuseNode true
+            args '-v /var/run/docker.sock:/var/run/docker.sock --user root'
         }
-    }
-
-    options {
-        timeout(time: 8, unit: 'MINUTES')
-        disableConcurrentBuilds()
     }
 
     stages {
@@ -25,51 +14,34 @@ pipeline {
         }
 
         stage('Install & Test') {
-            parallel {
-                stage('Install') {
-                    steps {
-                        sh 'pip install --upgrade pip --quiet'
-                        sh 'pip install -r requirements.txt --quiet'
-                    }
-                }
-                stage('Test') {
-                    steps {
-                        sh 'pytest tests/ -vv --junitxml=report.xml'
-                    }
-                }
+            steps {
+                sh 'pip install -r requirements.txt'
+                sh 'pytest tests/ -v'
             }
         }
 
         stage('Deploy') {
             steps {
-                sh 'docker-compose up -d --remove-orphans'
+                sh 'docker-compose up -d'
             }
         }
 
         stage('Wait for App') {
             steps {
-                script {
-                    timeout(time: 60, unit: 'SECONDS') {
-                        waitUntil {
-                            def result = sh(
-                                script: 'curl -f http://localhost:5000/ || exit 1',
-                                returnStatus: true
-                            )
-                            return (result == 0)
-                        }
+                timeout(time: 1, unit: 'MINUTES') {
+                    waitUntil {
+                        def r = sh(script: 'curl -f http://localhost:5000/ || exit 1', returnStatus: true)
+                        return (r == 0)
                     }
                 }
-                echo 'App is up and healthy!'
+                echo 'App is running!'
             }
         }
     }
 
     post {
         always {
-            junit testResults: 'report.xml', allowEmptyResults: true
-            cleanWs()
+            echo 'Done!'
         }
-        success { echo 'Success!' }
-        failure { echo 'Failed!' }
     }
 }
