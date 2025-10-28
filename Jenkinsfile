@@ -3,47 +3,60 @@ pipeline {
         docker {
             image 'abhirajadhikary06/myflaskapp:latest'
             args '-v /var/run/docker.sock:/var/run/docker.sock --user root'
+            reuseNode true
         }
     }
 
     stages {
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Install & Test') {
+        stage('Install Python Packages') {
             steps {
-                sh 'pip install -r requirements.txt'
+                sh 'pip install --no-cache-dir -r requirements.txt'
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
                 sh 'pytest tests/ -v'
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy App') {
             steps {
                 sh 'docker-compose up -d'
             }
         }
 
-        stage('Wait for App') {
+        stage('Wait for Flask') {
             steps {
-                timeout(time: 1, unit: 'MINUTES') {
+                timeout(time: 90, unit: 'SECONDS') {
                     waitUntil {
-                        script {
-                            def r = sh(script: 'curl -f http://localhost:5000/ || exit 1', returnStatus: true)
-                            return (r == 0)
-                        }
+                        def result = sh(
+                            script: 'curl -f http://localhost:5000/ || exit 1',
+                            returnStatus: true
+                        )
+                        return result == 0
                     }
                 }
-                echo 'App is running!'
+                echo 'Flask app is UP!'
             }
         }
     }
 
     post {
         always {
-            echo 'Done!'
+            echo 'Build finished.'
+        }
+        success {
+            echo 'SUCCESS: App is running!'
+        }
+        failure {
+            echo 'FAILED: Check logs.'
         }
     }
 }
