@@ -1,9 +1,8 @@
 pipeline {
-    // Run every stage inside a Docker container
     agent {
         docker {
-            image 'abhirajadhikary06/myflaskapp:latest'   // Your pre-built image
-            label 'docker'                                 // Any node with Docker
+            image 'abhirajadhikary06/myflaskapp:latest'
+            label 'docker'
             args '''
                 -v /var/run/docker.sock:/var/run/docker.sock
                 -v /usr/bin/docker:/usr/bin/docker
@@ -13,64 +12,56 @@ pipeline {
         }
     }
 
-    environment {
-        DOCKER_HOST = 'unix:///var/run/docker.sock'
+    options {
+        timeout(time: 8, unit: 'MINUTES')
+        disableConcurrentBuilds()
     }
 
     stages {
         stage('Checkout') {
-            steps {
-                checkout scm
+            steps { checkout scm }
+        }
+
+        stage('Install & Test') {
+            parallel {
+                stage('Install') {
+                    steps {
+                        sh 'pip install --upgrade pip --quiet'
+                        sh 'pip install -r requirements.txt --quiet'
+                    }
+                }
+                stage('Test') {
+                    steps {
+                        sh 'pytest tests/ -vv --junitxml=report.xml'
+                    }
+                }
             }
         }
 
-        stage('Verify Tools') {
+        stage('Deploy') {
             steps {
-                sh 'python3 --version'
-                sh 'pip3 --version'
-                sh 'docker --version'
-                sh 'docker-compose --version'
+                sh 'docker-compose up -d --remove-orphans'
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Wait for App') {
             steps {
-                sh 'python3 -m pip install --upgrade pip'
-                sh 'python3 -m pip install -r requirements.txt'
-            }
-        }
-
-        stage('Run Unit Tests') {
-            steps {
-                sh 'python3 -m pytest tests/ -vv'
-            }
-        }
-
-        stage('Docker Build (optional)') {
-            when { expression { false } }  // Skip – image already exists
-            steps {
-                sh 'docker buildx build -t myflaskapp:latest .'
-            }
-        }
-
-        stage('Deploy with Monitoring') {
-            steps {
-                sh 'docker-compose up -d'
+                timeout(time: 60, unit: 'SECONDS') {
+                    waitUntil {
+                        sh(script: 'curl -f http://localhost:5000/ || exit 1', returnStatus: true) == 0
+                    }
+                }
+                echo 'App is up!'
             }
         }
     }
 
     post {
         always {
-            echo 'Pipeline finished'
-            // Optional: clean workspace
+            junit 'report.xml'
             cleanWs()
         }
-        success {
-            echo 'Deployment successful!'
-        }
-        failure {
-            echo 'Pipeline failed'
-        }
+        success { echo 'Deployed!' }
+        failure { echo 'Failed!' }
     }
 }

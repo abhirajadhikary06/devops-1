@@ -2,9 +2,14 @@ version: '3.8'
 
 services:
   app:
-    image: abhirajadhikary06/myflaskapp:latest   # Pull from registry
+    image: abhirajadhikary06/myflaskapp:latest
     ports:
       - "5000:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
     restart: unless-stopped
 
   prometheus:
@@ -13,10 +18,7 @@ services:
       - "9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
+    command: --config.file=/etc/prometheus/prometheus.yml
     restart: unless-stopped
 
   grafana:
@@ -46,6 +48,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  prometheus_data:
   grafana_data:
   jenkins_home:
