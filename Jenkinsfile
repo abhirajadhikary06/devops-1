@@ -19,7 +19,9 @@ pipeline {
 
     stages {
         stage('Checkout') {
-            steps { checkout scm }
+            steps {
+                checkout scm
+            }
         }
 
         stage('Install & Test') {
@@ -46,22 +48,28 @@ pipeline {
 
         stage('Wait for App') {
             steps {
-                timeout(time: 60, unit: 'SECONDS') {
-                    waitUntil {
-                        sh(script: 'curl -f http://localhost:5000/ || exit 1', returnStatus: true) == 0
+                script {
+                    timeout(time: 60, unit: 'SECONDS') {
+                        waitUntil {
+                            def result = sh(
+                                script: 'curl -f http://localhost:5000/ || exit 1',
+                                returnStatus: true
+                            )
+                            return (result == 0)
+                        }
                     }
                 }
-                echo 'App is up!'
+                echo 'App is up and healthy!'
             }
         }
     }
 
     post {
         always {
-            junit 'report.xml'
+            junit testResults: 'report.xml', allowEmptyResults: true
             cleanWs()
         }
-        success { echo 'Deployed!' }
+        success { echo 'Success!' }
         failure { echo 'Failed!' }
     }
 }
