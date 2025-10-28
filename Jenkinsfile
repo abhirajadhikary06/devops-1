@@ -30,8 +30,10 @@ pipeline {
             steps {
                 timeout(time: 1, unit: 'MINUTES') {
                     waitUntil {
-                        def r = sh(script: 'curl -f http://localhost:5000/ || exit 1', returnStatus: true)
-                        return (r == 0)
+                        script {
+                            def r = sh(script: 'curl -f http://localhost:5000/ || exit 1', returnStatus: true)
+                            return (r == 0)
+                        }
                     }
                 }
                 echo 'App is running!'
