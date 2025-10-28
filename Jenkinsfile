@@ -1,60 +1,53 @@
 pipeline {
     agent any
     
+    environment {
+        DOCKER_IMAGE = 'abhirajadhikary06/myflaskapp'
+        DOCKER_TAG = 'latest'
+    }
+    
     stages {
-        stage('Checkout') {
+        stage('Build') {
             steps {
-                checkout scm
+                echo 'Building application...'
+                sh 'pip install -r requirements.txt'
             }
         }
         
         stage('Test') {
             steps {
-                sh '''
-                    # Install Python if not available
-                    if ! command -v python3 &> /dev/null; then
-                        echo "Python not found, installing Python 3..."
-                        apt-get update && apt-get install -y python3 python3-pip curl
-                    fi
-                    
-                    # Install dependencies and run tests
-                    python3 -m pip install -r requirements.txt
-                    python3 -m pytest tests/ -v
-                '''
+                echo 'Running tests...'
+                sh 'python -m pytest tests/'
             }
         }
         
-        stage('Build and Deploy') {
+        stage('Build Docker Image') {
             steps {
-                sh '''
-                    # Build and deploy
-                    docker build -t abhirajadhikary06/myflaskapp:latest .
-                    docker-compose up -d
-                '''
+                echo 'Building Docker image...'
+                sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
             }
         }
         
-        stage('Verify') {
+        stage('Push Docker Image') {
             steps {
-                sh '''
-                    # Wait for app to start
-                    sleep 10
-                    curl -f http://localhost:5000/ || echo "App not responding"
-                '''
-                echo 'Deployment verification complete'
+                echo 'Pushing Docker image...'
+                withCredentials([usernamePassword(credentialsId: 'dockerhub', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                    sh "docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}"
+                    sh "docker push ${DOCKER_IMAGE}:${DOCKER_TAG}"
+                }
             }
         }
     }
     
     post {
         always {
-            echo 'Pipeline completed'
+            sh 'docker logout'
         }
         success {
-            echo 'Successfully deployed the application'
+            echo 'Pipeline succeeded!'
         }
         failure {
-            echo 'Failed to deploy the application'
+            echo 'Pipeline failed!'
         }
     }
 }
