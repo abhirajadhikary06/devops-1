@@ -13,56 +13,50 @@ pipeline {
             }
         }
         
-        stage('Setup') {
+        stage('Setup Python Environment') {
+            steps {
+                sh '''
+                python3 -m pip install --user --upgrade pip
+                python3 -m pip install --user -r requirements.txt
+                python3 -m pip install --user pytest pytest-flask
+                '''
+            }
+        }
+        
+        stage('Run Tests') {
+            steps {
+                sh 'python3 -m pytest tests/ -v'
+            }
+        }
+        
+        stage('Docker Build and Push') {
             agent {
-                docker {
-                    image 'python:3.12-slim'
-                    reuseNode true
-                }
+                label 'docker'
             }
             steps {
-                sh 'pip install --upgrade pip'
-                sh 'pip install -r requirements.txt'
-                sh 'pip install pytest pytest-flask'
+                withCredentials([usernamePassword(credentialsId: DOCKER_CREDENTIALS_ID, usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh '''
+                    docker build -t ${DOCKER_USERNAME}/${APP_NAME}:${BUILD_NUMBER} .
+                    docker tag ${DOCKER_USERNAME}/${APP_NAME}:${BUILD_NUMBER} ${DOCKER_USERNAME}/${APP_NAME}:latest
+                    echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+                    docker push ${DOCKER_USERNAME}/${APP_NAME}:${BUILD_NUMBER}
+                    docker push ${DOCKER_USERNAME}/${APP_NAME}:latest
+                    '''
+                }
             }
         }
         
-        stage('Test') {
+        stage('Deploy Application') {
             agent {
-                docker {
-                    image 'python:3.12-slim'
-                    reuseNode true
-                }
+                label 'docker'
             }
-            steps {
-                sh 'python -m pytest tests/ -v'
-            }
-        }
-        
-        stage('Build Docker Image') {
             steps {
                 withCredentials([usernamePassword(credentialsId: DOCKER_CREDENTIALS_ID, usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                    sh 'docker build -t ${DOCKER_USERNAME}/${APP_NAME}:${BUILD_NUMBER} .'
-                    sh 'docker tag ${DOCKER_USERNAME}/${APP_NAME}:${BUILD_NUMBER} ${DOCKER_USERNAME}/${APP_NAME}:latest'
-                }
-            }
-        }
-        
-        stage('Push Docker Image') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: DOCKER_CREDENTIALS_ID, usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                    sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
-                    sh 'docker push ${DOCKER_USERNAME}/${APP_NAME}:${BUILD_NUMBER}'
-                    sh 'docker push ${DOCKER_USERNAME}/${APP_NAME}:latest'
-                }
-            }
-        }
-        
-        stage('Deploy') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: DOCKER_CREDENTIALS_ID, usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                    sh 'DOCKER_USERNAME=$DOCKER_USERNAME docker-compose down || true'
-                    sh 'DOCKER_USERNAME=$DOCKER_USERNAME docker-compose up -d'
+                    sh '''
+                    export DOCKER_USERNAME=$DOCKER_USERNAME
+                    docker-compose down || true
+                    docker-compose up -d
+                    '''
                 }
             }
         }
@@ -71,7 +65,7 @@ pipeline {
     post {
         always {
             script {
-                sh 'docker logout || true'
+                sh 'docker logout || true || echo "Docker logout failed but continuing"'
                 cleanWs()
             }
         }
